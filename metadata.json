@@ -1,0 +1,5 @@
+{
+  "name": "高级检索词生成",
+  "description": "An AI-powered tool to generate advanced search strings for PubMed, Scopus, and CNKI based on research domains.",
+  "requestFramePermissions": []
+}
