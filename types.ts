@@ -15,3 +15,15 @@ export enum Step {
   SELECT_DB = 2,
   RESULT = 3
 }
+
+export enum ApiProvider {
+  GOOGLE = 'Google Gemini',
+  OPENAI = 'OpenAI Compatible'
+}
+
+export interface ApiSettings {
+  provider: ApiProvider;
+  apiKey: string;
+  baseUrl?: string;
+  modelName: string;
+}

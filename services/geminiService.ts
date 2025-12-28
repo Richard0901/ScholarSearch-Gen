@@ -1,17 +1,67 @@
 import { GoogleGenAI } from "@google/genai";
-import { Database } from "../types";
+import { Database, ApiSettings, ApiProvider } from "../types";
 
-const apiKey = process.env.API_KEY;
+// Helper for OpenAI Compatible API
+async function callOpenAI(settings: ApiSettings, prompt: string): Promise<string> {
+  const baseUrl = settings.baseUrl?.replace(/\/$/, '') || 'https://api.openai.com/v1';
+  const url = `${baseUrl}/chat/completions`;
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${settings.apiKey}`
+  };
 
-// Initialize the client
-const ai = new GoogleGenAI({ apiKey: apiKey });
+  const body = {
+    model: settings.modelName,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`OpenAI API Error: ${response.status} - ${err}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+// Helper for Google API
+async function callGoogle(settings: ApiSettings | undefined, prompt: string): Promise<string> {
+   const apiKey = settings?.apiKey || process.env.API_KEY;
+   if (!apiKey) throw new Error("No API Key provided for Google Gemini");
+   
+   const ai = new GoogleGenAI({ apiKey });
+   const model = settings?.modelName || 'gemini-3-flash-preview';
+
+   const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+   });
+
+   return response.text || "";
+}
+
+// Unified call function
+async function generateContent(prompt: string, settings?: ApiSettings): Promise<string> {
+  if (settings?.provider === ApiProvider.OPENAI) {
+    return callOpenAI(settings, prompt);
+  } else {
+    return callGoogle(settings, prompt);
+  }
+}
 
 /**
  * Identify the broader domain from a specific research description.
  */
-export const identifyDomain = async (researchDescription: string): Promise<string> => {
+export const identifyDomain = async (researchDescription: string, settings?: ApiSettings): Promise<string> => {
   try {
-    const model = 'gemini-3-flash-preview';
     const prompt = `
       Task: Identify the immediate parent research field (上一级的大领域) or core subject for the following specific research content.
       
@@ -35,26 +85,19 @@ export const identifyDomain = async (researchDescription: string): Promise<strin
       Output Requirement: Return ONLY the name of the domain. Do not add any introductory text.
     `;
 
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-    });
-
-    return response.text?.trim() || "无法识别领域";
+    const result = await generateContent(prompt, settings);
+    return result.trim() || "无法识别领域";
   } catch (error) {
     console.error("Error identifying domain:", error);
-    throw new Error("Failed to identify domain. Please try manual input.");
+    throw new Error("Failed to identify domain. Please check your API settings.");
   }
 };
 
 /**
  * Generate the advanced search string based on the user's requirements.
  */
-export const generateSearchString = async (domain: string, database: Database): Promise<string> => {
+export const generateSearchString = async (domain: string, database: Database, settings?: ApiSettings): Promise<string> => {
   try {
-    // We use a smarter model for complex logic generation
-    const model = 'gemini-3-flash-preview'; 
-
     // Specific formatting instructions based on DB
     let dbSpecificInstructions = "";
     if (database === Database.SCOPUS) {
@@ -111,18 +154,15 @@ export const generateSearchString = async (domain: string, database: Database): 
     - Do not add explanations.
     `;
 
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-    });
+    const result = await generateContent(prompt, settings);
 
     // Clean up if the model accidentally adds markdown
-    let cleanText = response.text?.trim() || "";
+    let cleanText = result.trim() || "";
     cleanText = cleanText.replace(/^```(sql|text)?/, '').replace(/```$/, '').trim();
 
     return cleanText;
   } catch (error) {
     console.error("Error generating search string:", error);
-    throw new Error("Failed to generate search string.");
+    throw new Error("Failed to generate search string. Please check your API settings.");
   }
 };

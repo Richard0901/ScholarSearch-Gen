@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { Database, Step } from './types';
+import { Database, Step, ApiSettings, ApiProvider } from './types';
 import { identifyDomain, generateSearchString } from './services/geminiService';
-import { DatabaseIcon, MagicWandIcon, SearchIcon, CopyIcon, CheckIcon, ArrowRightIcon, RefreshIcon } from './components/Icons';
+import { DatabaseIcon, MagicWandIcon, SearchIcon, CopyIcon, CheckIcon, ArrowRightIcon, RefreshIcon, SettingsIcon } from './components/Icons';
 import StepIndicator from './components/StepIndicator';
+import SettingsModal from './components/SettingsModal';
 
 const App: React.FC = () => {
-  // State
+  // Settings State
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiSettings, setApiSettings] = useState<ApiSettings>({
+    provider: ApiProvider.GOOGLE,
+    apiKey: '',
+    baseUrl: '',
+    modelName: 'gemini-3-flash-preview'
+  });
+
+  // App State
   const [currentStep, setCurrentStep] = useState<Step>(Step.DEFINE_DOMAIN);
   
   // Step 1: Domain
@@ -33,10 +43,10 @@ const App: React.FC = () => {
     setDomainError('');
     setIsDomainLoading(true);
     try {
-      const result = await identifyDomain(researchDescription);
+      const result = await identifyDomain(researchDescription, apiSettings);
       setDomain(result);
     } catch (e) {
-      setDomainError('无法识别，请尝试手动输入');
+      setDomainError('无法识别，请检查设置或手动输入');
     } finally {
       setIsDomainLoading(false);
     }
@@ -53,10 +63,10 @@ const App: React.FC = () => {
     setIsQueryLoading(true);
 
     try {
-      const query = await generateSearchString(domain, selectedDb);
+      const query = await generateSearchString(domain, selectedDb, apiSettings);
       setGeneratedQuery(query);
     } catch (e) {
-      setQueryError('生成检索式失败，请重试');
+      setQueryError('生成检索式失败，请检查设置重试');
     } finally {
       setIsQueryLoading(false);
     }
@@ -89,8 +99,24 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8 text-gray-800">
       
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)}
+        onSave={setApiSettings}
+        currentSettings={apiSettings}
+      />
+
       {/* Header */}
-      <div className="max-w-3xl mx-auto text-center mb-10">
+      <div className="max-w-3xl mx-auto text-center mb-10 relative">
+        <button 
+          onClick={() => setShowSettings(true)}
+          className="absolute right-0 top-0 p-2 text-gray-500 hover:text-indigo-600 transition-colors"
+          title="设置 / Settings"
+        >
+          <SettingsIcon className="w-6 h-6" />
+        </button>
+
         <div className="flex justify-center mb-4">
           <div className="bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-200">
             <SearchIcon className="text-white w-8 h-8" />
